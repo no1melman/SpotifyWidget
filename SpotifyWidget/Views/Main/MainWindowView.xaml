@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SpotifyWidget.Views.Main"
         mc:Ignorable="d"
-        Title="MainWindowView" Height="132" Width="400" Opacity="1" WindowStyle="None" Background="Black">
+        Title="MainWindowView" Height="218" Width="400" Opacity="1" WindowStyle="None" Background="Black">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="32" ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}"></WindowChrome>
     </WindowChrome.WindowChrome>
@@ -171,17 +171,16 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="100" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="170" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="1" Grid.Row="0" CanHorizontallyScroll="False" CanVerticallyScroll="False">
-                <TextBlock x:Name="Name" Margin="5,0,0,10" />
-                <TextBlock x:Name="Artist" Margin="5,0,0,10" />
-                <TextBlock x:Name="Album" Margin="5,0,0,0" />
+            <StackPanel Grid.Column="0" Grid.Row="0" CanHorizontallyScroll="False" CanVerticallyScroll="False" VerticalAlignment="Bottom" >
+                <TextBlock x:Name="Name" Margin="20,0,0,0" HorizontalAlignment="Stretch" Text="[Name]" FontSize="40" TextTrimming="CharacterEllipsis"  />
+                <TextBlock x:Name="Artist" Margin="20,0,0,20" Text="[Artist]" FontSize="20" />
             </StackPanel>
 
-            <StackPanel Grid.Column="0" Grid.Row="0" CanHorizontallyScroll="False" CanVerticallyScroll="False">
-                <Image Stretch="UniformToFill" Source="{Binding Bitmap}" Width="100" Height="100" />
+            <StackPanel Grid.Column="1" Grid.Row="0" CanHorizontallyScroll="False" CanVerticallyScroll="False" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Image Stretch="UniformToFill" Source="{Binding Bitmap}" Width="150" Height="150" />
             </StackPanel>
         </Grid>
     </Grid>

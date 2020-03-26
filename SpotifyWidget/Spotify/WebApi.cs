@@ -12,9 +12,9 @@ namespace SpotifyWidget.Spotify
     {
         void Set(SpotifyWebAPI api);
 
-        Task<PlaybackModel> GetPlayback();
+        Task<(ErrorModel, PlaybackModel)> GetPlayback();
 
-        Task<bool> CheckConnectionIsGood();
+        Task<(bool, ErrorModel)> CheckConnectionIsGood();
     }
 
     public class WebApi : IWebApi
@@ -31,30 +31,34 @@ namespace SpotifyWidget.Spotify
             return spotifyWebApi ?? throw new SpotifyApplicationException("You've not initialised the Web Api");
         }
 
-        public async Task<PlaybackModel> GetPlayback()
+        public async Task<(ErrorModel, PlaybackModel)> GetPlayback()
         {
-            try
-            {
-                EnsureWebApi();
+            EnsureWebApi();
 
-                var playbackContext = await spotifyWebApi.GetPlaybackAsync();
-
-                return new PlaybackModel(playbackContext.IsPlaying, playbackContext?.Item);
-            }
-            catch (SpotifyApplicationException ex)
-            { 
-                return null;
-            }
+            var playbackContext = await spotifyWebApi.GetPlaybackAsync();
+            
+            return (GetError(playbackContext),
+                new PlaybackModel(playbackContext?.IsPlaying ?? false, playbackContext?.Item));
         }
 
-        public async Task<bool> CheckConnectionIsGood()
+        public async Task<(bool, ErrorModel)> CheckConnectionIsGood()
         {
             EnsureWebApi();
 
             var playbackContext = await spotifyWebApi.GetPlaybackAsync();
 
-            return !playbackContext.HasError();
+            return (!playbackContext.HasError(), GetError(playbackContext));
         }
+
+        private ErrorModel GetError(BasicModel core)
+            =>
+                core?.HasError() ?? true
+                    ? new ErrorModel
+                    {
+                        Message = core?.Error?.Message,
+                        Status = core?.Error?.Status ?? -1
+                    }
+                    : null;
 
         private object EnsureWebApi()
         {
@@ -66,31 +70,11 @@ namespace SpotifyWidget.Spotify
     {
         public PlaybackModel(bool isPlaying, FullTrack playbackContextItem)
         {
-            if (playbackContextItem == null)
-            {
-                throw new SpotifyApplicationException("Unable to retrieve playback");
-            }
-
-            if (playbackContextItem.HasError())
-            {
-                throw new SpotifyApplicationException("Unable to retrieve playback");
-            }
-
-            if (playbackContextItem.Album.HasError())
-            {
-                throw new SpotifyApplicationException("Unable to retrieve album");
-            }
-
-            if (playbackContextItem.Artists.All(x => x.HasError()))
-            {
-                throw new SpotifyApplicationException("Couldn't retrieve any artists");
-            }
-
             this.IsPlaying = isPlaying;
-            this.Album = playbackContextItem.Album.Name;
-            this.Artists = string.Join(", ", playbackContextItem.Artists.Where(x => !x.HasError()).Select(x => x.Name));
-            this.Name = playbackContextItem.Name;
-            this.Image = playbackContextItem.Album.Images.Where(x => x.Url != null).Select(x => x.Url);
+            this.Album = playbackContextItem?.Album?.Name;
+            this.Artists = playbackContextItem?.Artists == null ? "" : string.Join(", ", playbackContextItem.Artists.Where(x => !x.HasError()).Select(x => x.Name));
+            this.Name = playbackContextItem?.Name ?? null;
+            this.Image = playbackContextItem?.Album?.Images?.Where(x => x.Url != null).Select(x => x.Url);
         }
 
         public bool IsPlaying { get; }
@@ -99,5 +83,11 @@ namespace SpotifyWidget.Spotify
         public string Artists { get; set; }
 
         public IEnumerable<string> Image { get; set; }
+    }
+
+    public class ErrorModel
+    {
+        public int Status { get; set; }
+        public string Message { get; set; }
     }
 }

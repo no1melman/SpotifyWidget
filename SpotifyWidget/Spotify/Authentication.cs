@@ -10,7 +10,7 @@ namespace SpotifyWidget.Spotify
 {
     public interface IAuthentication
     {
-        Task<SpotifyWebAPI> Initialise();
+        Task<SpotifyWebAPI> Initialise(bool forceAuth = false);
     }
 
     public class Authentication : IAuthentication
@@ -29,9 +29,9 @@ namespace SpotifyWidget.Spotify
         }
 
 
-        public async Task<SpotifyWebAPI> Initialise()
+        public async Task<SpotifyWebAPI> Initialise(bool forceAuth = false)
         {
-            if (settingsProvider.TokenType.IsNullOrEmpty() || settingsProvider.AccessToken.IsNullOrEmpty())
+            if (forceAuth || settingsProvider.TokenType.IsNullOrEmpty() || settingsProvider.AccessToken.IsNullOrEmpty())
             {
                 return await InitialiseFromBrowser();
             }

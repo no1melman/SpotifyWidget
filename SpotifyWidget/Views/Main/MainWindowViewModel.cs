@@ -16,36 +16,32 @@ namespace SpotifyWidget.Views.Main
         Task OpenSettings();
     }
 
-    public class MainWindowViewModel : Screen, IMainWindowViewModel
+    public class MainWindowViewModel : Screen, IMainWindowViewModel, IHandle<PlaybackModel>
     {
-        private readonly IAuthentication authentication;
         private readonly IWebApi webApi;
         private readonly IWindowManager windowManager;
         private readonly ISettingsViewModel settingsViewModel;
 
         public MainWindowViewModel(
-            IAuthentication authentication,
             IWebApi webApi,
             IWindowManager windowManager,
-            ISettingsViewModel settingsViewModel)
+            ISettingsViewModel settingsViewModel,
+            IEventAggregator eventAggregator)
         {
-            this.authentication = authentication;
             this.webApi = webApi;
             this.windowManager = windowManager;
             this.settingsViewModel = settingsViewModel;
+
+            eventAggregator.SubscribeOnUIThread(this);
         }
 
         protected override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
-            var playbackModel = await webApi.GetPlayback();
+            var (error, playbackModel) = await webApi.GetPlayback();
 
-            if (playbackModel != null)
+            if (error == null && playbackModel != null)
             {
-                this.Name = playbackModel.Name;
-                this.Artist = playbackModel.Artists;
-                this.Album = playbackModel.Album;
-                this.IsPlaying = playbackModel.IsPlaying;
-                this.Bitmap = new BitmapImage(new Uri(playbackModel.Image.FirstOrDefault()));
+                SetAllTheThings(playbackModel);
             }
 
             await base.OnActivateAsync(cancellationToken);
@@ -53,11 +49,7 @@ namespace SpotifyWidget.Views.Main
 
         protected override void OnViewLoaded(object view)
         {
-            this.NotifyOfPropertyChange(() => Name);
-            this.NotifyOfPropertyChange(() => Artist);
-            this.NotifyOfPropertyChange(() => Album);
-            this.NotifyOfPropertyChange(() => IsPlaying);
-            this.NotifyOfPropertyChange(() => Bitmap);
+            NotifyAllTheThings();
             base.OnViewLoaded(view);
         }
 
@@ -75,20 +67,38 @@ namespace SpotifyWidget.Views.Main
         public async Task OpenSettings()
         {
             var showDialogAsync = await this.windowManager.ShowDialogAsync(settingsViewModel);
-            
-            var playbackModel = await webApi.GetPlayback();
+        }
 
-            this.Name = playbackModel.Name;
-            this.Artist = playbackModel.Artists;
-            this.Album = playbackModel.Album;
-            this.IsPlaying = playbackModel.IsPlaying;
-            this.Bitmap = new BitmapImage(new Uri(playbackModel.Image.FirstOrDefault()));
-
+        private void NotifyAllTheThings()
+        {
             this.NotifyOfPropertyChange(() => Name);
             this.NotifyOfPropertyChange(() => Artist);
             this.NotifyOfPropertyChange(() => Album);
             this.NotifyOfPropertyChange(() => IsPlaying);
             this.NotifyOfPropertyChange(() => Bitmap);
+        }
+
+        private void SetAllTheThings(PlaybackModel playbackModel)
+        {
+            // there is only context data when playing
+            if (playbackModel.IsPlaying)
+            {
+                this.Name = playbackModel.Name;
+                this.Artist = playbackModel.Artists;
+                this.Album = playbackModel.Album;
+                this.Bitmap = new BitmapImage(new Uri(playbackModel.Image.FirstOrDefault()));
+            }
+            
+            this.IsPlaying = playbackModel.IsPlaying;
+        }
+
+        public Task HandleAsync(PlaybackModel message, CancellationToken cancellationToken)
+        {
+            SetAllTheThings(message);
+
+            NotifyAllTheThings();
+
+            return Task.CompletedTask;
         }
     }
 }
