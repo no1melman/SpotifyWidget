@@ -13,6 +13,8 @@
  - Toggle to hide the Title bar (Shift+V to bring back)
  - Polls spotify every 5 seconds to get playback data
 
+There is a pre-build binary for Windows 10 x64 in the `SpotifyWidget.zip`
+
 ## To Build
 
 ```bash
