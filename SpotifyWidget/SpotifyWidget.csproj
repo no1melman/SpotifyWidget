@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Caliburn.Micro" Version="4.0.105-alpha" />
+    <PackageReference Include="Serilog.Sinks.Async" Version="1.4.0" />
+    <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
     <PackageReference Include="SpotifyAPI.Web" Version="5.1.0" />
     <PackageReference Include="SpotifyAPI.Web.Auth" Version="5.1.0" />
     <PackageReference Include="structuremap" Version="4.7.1" />

@@ -1,4 +1,6 @@
 ﻿using System.Windows;
+using Serilog;
+using Serilog.Core;
 
 namespace SpotifyWidget
 {
@@ -10,7 +12,10 @@ namespace SpotifyWidget
         public App()
         {
             InitializeComponent();
+            Log.Logger = new LoggerConfiguration().WriteTo.Async(a => a.RollingFile("log-{HalfHour}.txt", outputTemplate:
+                "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")).CreateLogger();
 
+            Log.Logger.Information("Starting up...");
         }
     }
 }

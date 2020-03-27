@@ -35,4 +35,13 @@ namespace SpotifyWidget.Workloads
             await eventAggregator.PublishOnBackgroundThreadAsync(playbackModel);
         }
     }
+
+    public class DummyWorkload : IWorkload
+    {
+        public int Delay { get; }
+        public Task DoWork()
+        {
+            throw new System.NotImplementedException();
+        }
+    }
 }

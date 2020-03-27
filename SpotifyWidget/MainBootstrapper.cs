@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Caliburn.Micro;
+using Serilog;
 using SpotifyWidget.Spotify;
 using SpotifyWidget.Views.Main;
 using StructureMap;
@@ -24,6 +25,8 @@ namespace SpotifyWidget
         {
             base.Configure();
 
+            Log.Logger.Information("Configuring the Container");
+            
             container = ConfigureContainer();
 
             container.GetInstance<IEventAggregator>().SubscribeOnUIThread(this);
@@ -39,44 +42,43 @@ namespace SpotifyWidget
                     s.TheCallingAssembly();
 
                     s.AddAllTypesOf<IWorkload>();
-                    s.ConnectImplementationsToTypesClosing(typeof(IHandle<>));
 
-                    s.WithDefaultConventions();
+                    s.ConnectImplementationsToTypesClosing(typeof(IHandle<>));
+                    
+                    s.WithDefaultConventions(); // ISomething => Something, .Transient()
                 });
 
                 c.For<IWindowManager>().Use<WindowManager>();
-                c.For<IEventAggregator>().Use<EventAggregator>();
+                c.For<IEventAggregator>().Use<EventAggregator>().Singleton();
+
                 c.For<ISettingsProvider>().Use<SettingsProvider>().Singleton();
                 c.For<IWebApi>().Use<WebApi>().Singleton();
                 c.For<IApplicationController>().Use<ApplicationController>().Singleton();
-                c.For<IEventAggregator>().Use<EventAggregator>().Singleton();
-
+                c.For<ILogger>().Use(Log.Logger);
             });
 
-        protected override object GetInstance(Type service, string key)
-        {
-            return container.GetInstance(service);
-        }
+        protected override object GetInstance(Type service, string key) => container.GetInstance(service);
 
-        protected override IEnumerable<object> GetAllInstances(Type service)
-        {
-            return container.GetAllInstances(service)
+        protected override IEnumerable<object> GetAllInstances(Type service) =>
+            container.GetAllInstances(service)
                 .Cast<IEnumerable<object>>();
-        }
 
         protected override void OnStartup(object sender, StartupEventArgs e)
         {
-            Task.Run(async () =>
-            {
-                var startup = new Startup(container);
-                await startup.Go();
-            }).Wait();
+            Log.Logger.Information("Authorising with Spotify");
+
+            Task.Run(async () => await container.GetInstance<IStartup>().Go()).Wait();
 
             DisplayRootViewFor<IMainWindowViewModel>();
         }
 
         public Task HandleAsync(ShutdownModel message, CancellationToken cancellationToken)
         {
+            // base on message exit code, either we show error boxes
+            // or we cleanly shutdown
+            //MessageBox.Show("Unable to connect to spotify", "Error Connecting to Spotify",
+            //    MessageBoxButton.OK, MessageBoxImage.Error);
+
             Application.Current.Shutdown(message.ExitCode);
 
             return Task.CompletedTask;

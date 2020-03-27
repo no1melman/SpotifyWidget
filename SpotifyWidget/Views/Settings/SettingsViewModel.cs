@@ -1,7 +1,4 @@
-﻿using System;
-using System.Drawing;
-using System.Threading.Tasks;
-using System.Windows.Media.Imaging;
+﻿using System.Threading.Tasks;
 using Caliburn.Micro;
 using SpotifyWidget.Exceptions;
 using SpotifyWidget.Spotify;
@@ -15,16 +12,13 @@ namespace SpotifyWidget.Views.Settings
 
     public class SettingsViewModel : Screen, ISettingsViewModel
     {
-        private readonly IAuthentication authentication;
         private readonly IWebApi webApi;
         private readonly IEventAggregator eventAggregator;
 
         public SettingsViewModel(
-            IAuthentication authentication,
             IWebApi webApi,
             IEventAggregator eventAggregator)
         {
-            this.authentication = authentication;
             this.webApi = webApi;
             this.eventAggregator = eventAggregator;
         }
@@ -34,13 +28,11 @@ namespace SpotifyWidget.Views.Settings
         {
             try
             {
-                var spotifyWebApi = await this.authentication.Initialise();
-
-                webApi.Set(spotifyWebApi);
+                await this.webApi.ReAuthorise();
             }
             catch (SpotifyApplicationException ex)
             {
-                await eventAggregator.PublishOnBackgroundThreadAsync(ex);
+                await eventAggregator.PublishOnUIThreadAsync(new ShutdownModel(50));
                 await this.TryCloseAsync();
             }
         }

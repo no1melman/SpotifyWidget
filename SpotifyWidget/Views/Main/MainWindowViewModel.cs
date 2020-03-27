@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Caliburn.Micro;
 using SpotifyWidget.Spotify;
@@ -58,10 +59,27 @@ namespace SpotifyWidget.Views.Main
         public string Album { get; set; }
         public bool IsPlaying { get; set; }
         public BitmapImage Bitmap { get; set; }
+        public bool TitleBarVisibility { get; set; } = true;
         
         public void CloseWindow()
         {
             Application.Current.Shutdown(0);
+        }
+
+        public void HideTitleBar()
+        {
+            this.TitleBarVisibility = false;
+            NotifyOfPropertyChange(() => TitleBarVisibility);
+        }
+
+        public void KeyEvent(ActionExecutionContext aec)
+        {
+            if (!(aec.EventArgs is KeyEventArgs kargs)) return;
+            if (kargs.Key != Key.V || kargs.KeyboardDevice.Modifiers != ModifierKeys.Shift) return;
+            if (TitleBarVisibility == true) return;
+            
+            TitleBarVisibility = true;
+            NotifyOfPropertyChange(() => TitleBarVisibility);
         }
 
         public async Task OpenSettings()

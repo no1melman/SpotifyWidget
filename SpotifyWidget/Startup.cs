@@ -1,13 +1,8 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using Caliburn.Micro;
-using SpotifyAPI.Web;
-using SpotifyWidget.Exceptions;
 using SpotifyWidget.Spotify;
-using StructureMap;
 
 namespace SpotifyWidget
 {
@@ -18,14 +13,21 @@ namespace SpotifyWidget
 
     public class Startup : IStartup, IHandle<ErrorModel>
     {
-        private readonly IContainer container;
+        private readonly ISettingsProvider settingsProvider;
+        private readonly IWebApi webApi;
+        private readonly IApplicationController applicationController;
 
         public Startup(
-            IContainer container)
+            ISettingsProvider settingsProvider,
+            IEventAggregator eventAggregator,
+            IWebApi webApi,
+            IApplicationController applicationController)
         {
-            this.container = container;
+            this.settingsProvider = settingsProvider;
+            this.webApi = webApi;
+            this.applicationController = applicationController;
 
-            container.GetInstance<IEventAggregator>().SubscribeOnPublishedThread(this);
+            eventAggregator.SubscribeOnPublishedThread(this);
         }
 
         public async Task Go()
@@ -40,9 +42,6 @@ namespace SpotifyWidget
 
         private async Task<bool> InitiateSpotify()
         {
-            var settingsProvider = container.GetInstance<ISettingsProvider>();
-
-
             var settingsExist = true;
             try
             {
@@ -59,85 +58,13 @@ namespace SpotifyWidget
                 await settingsProvider.SaveSettings();
             }
 
-            // we load these deps down here, because we've modified the settings provider
-            // this prevents us getting a stale copy.
+            await webApi.ReAuthorise();
 
-            var auth = container.GetInstance<IAuthentication>();
-            var webApi = container.GetInstance<IWebApi>();
-
-            // we can try load the spotify stuff
-
-            SpotifyWebAPI newWebApi = null;
-            try
-            {
-                newWebApi = await auth.Initialise();
-            }
-            catch (SpotifyApplicationException)
-            {
-                UnsafeShutdown();
-                return false;
-            }
-
-            webApi.Set(newWebApi);
-            var (isGood, error) = await webApi.CheckConnectionIsGood();
-
-
-            if (!isGood && error.Status != 401)
-            {
-                UnsafeShutdown();
-                return false;
-            }
-
-            // if we get a 401
-            // force a browser authentication
-            if (!isGood && error.Status == 401)
-            {
-                try
-                {
-                    newWebApi = await auth.Initialise(true);
-                }
-                catch (SpotifyApplicationException)
-                {
-                    UnsafeShutdown();
-                    return false;
-                }
-
-                webApi.Set(newWebApi);
-                var (secondIsGood, secondError) = await webApi.CheckConnectionIsGood();
-
-                // if it fails a second time, regardless, just quit.
-                if (!secondIsGood)
-                {
-                    UnsafeShutdown();
-                    return false;
-                }
-            }
-
-            // we can now save the settings and the spotify connection
-            // credentials because it should all have worked by here
-            await settingsProvider.SaveSettings();
             return true;
         }
 
-        private void InitiateWorkload()
-        {
-            var controller = container.GetInstance<IApplicationController>();
+        private void InitiateWorkload() => applicationController.RunWork();
 
-            controller.RunWork();
-        }
-
-        private void UnsafeShutdown()
-        {
-            MessageBox.Show("Unable to connect to spotify", "Error Connecting to Spotify",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-
-            this.container.GetInstance<IEventAggregator>().PublishOnUIThreadAsync(new ShutdownModel(1));
-        }
-
-        public async Task HandleAsync(ErrorModel message, CancellationToken cancellationToken)
-        {
-            // round two...
-            await InitiateSpotify();
-        }
+        public async Task HandleAsync(ErrorModel message, CancellationToken cancellationToken) => await InitiateSpotify();
     }
 }
