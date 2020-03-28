@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Caliburn.Micro;
+using Serilog;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 using SpotifyWidget.Exceptions;
@@ -11,7 +12,12 @@ namespace SpotifyWidget.Spotify
 {
     public interface IWebApi
     {
-        Task ReAuthorise();
+        /// <summary>
+        /// Authenticates the WebApi specifically through our <see cref="IAuthentication">Authentication</see> module
+        /// </summary>
+        /// <exception cref="SpotifyWebApiException">Thrown if Browser Authentication fails</exception>
+        /// <returns>Whether the Authentication was successful and if not, it will return an error object</returns>
+        Task<(bool, ErrorModel)> Authenticate();
 
         Task<(ErrorModel, PlaybackModel)> GetPlayback();
 
@@ -21,73 +27,56 @@ namespace SpotifyWidget.Spotify
     public class WebApi : IWebApi
     {
         private readonly IAuthentication authentication;
-        private readonly IEventAggregator eventAggregator;
         private readonly ISettingsProvider settingsProvider;
+
         private SpotifyWebAPI spotifyWebApi;
 
         public WebApi(
             IAuthentication authentication,
-            IEventAggregator eventAggregator,
             ISettingsProvider settingsProvider)
         {
             this.authentication = authentication;
-            this.eventAggregator = eventAggregator;
             this.settingsProvider = settingsProvider;
         }
 
-        public async Task ReAuthorise()
+        /// <inheritdoc cref="IWebApi.Authenticate"/>
+        public async Task<(bool, ErrorModel)> Authenticate()
         {
-            try
-            {
-                spotifyWebApi = await authentication.Initialise();
-            }
-            catch (SpotifyApplicationException)
-            {
-                UnsafeShutdown();
-            }
+            spotifyWebApi = await authentication.Initialise();
 
             var (isGood, error) = await CheckConnectionIsGood();
 
 
             if (!isGood && error.Status != 401)
             {
-                // delay then retry connection
-                // UnsafeShutdown();
+                // don't think we can recover from this here, just need to report on
+                // using the false literal because then I can always be sure it sends failure.
+                return (false, error);
             }
 
             // if we get a 401
             // force a browser authentication
             if (!isGood && error.Status == 401)
             {
-                try
-                {
-                    spotifyWebApi = await authentication.Initialise(true);
-                }
-                catch (SpotifyApplicationException)
-                {
-                    UnsafeShutdown();
-                }
+                spotifyWebApi = await authentication.Initialise(true);
 
                 var (secondIsGood, secondError) = await CheckConnectionIsGood();
 
                 // if it fails a second time, regardless, just quit.
                 if (!secondIsGood)
                 {
-                    // most likely try again in 1 minute
-                    UnsafeShutdown();
+                    // if we fail a second time, again, not sure what we can do here
+                    // so letting the error bubble up
+                    return (false, secondError);
                 }
             }
 
             // we can now save the settings and the spotify connection
             // credentials because it should all have worked by here
             await settingsProvider.SaveSettings();
+            return (true, null);
         }
-
-        private void UnsafeShutdown()
-        {
-            eventAggregator.PublishOnUIThreadAsync(new ShutdownModel(1));
-        }
-
+        
         public async Task<(ErrorModel, PlaybackModel)> GetPlayback()
         {
             EnsureWebApi();
@@ -118,6 +107,50 @@ namespace SpotifyWidget.Spotify
                     : null;
 
         private object EnsureWebApi() => spotifyWebApi ?? throw new Exception("You've not initialised the Web Api");
+    }
+
+    public class NotifyWebApi : IWebApi
+    {
+        private readonly IWebApi webApi;
+        private readonly ILogger logger;
+        private readonly Func<object, Task> publishEvent;
+
+        public NotifyWebApi(
+            IWebApi webApi,
+            IEventAggregator eventAggregator,
+            ILogger logger)
+        {
+            this.webApi = webApi;
+            this.logger = logger;
+            publishEvent = eventAggregator.PublishOnCurrentThreadAsync;
+        }
+
+        public async Task<(bool, ErrorModel)> Authenticate()
+        {
+            var (success, error) = await webApi.Authenticate();
+
+            if (!success)
+            {
+                this.logger.Warning("Spotify encountered an error :: Authenticate");
+                await publishEvent(error ?? new ErrorModel {Message = "Error from :: Authenticate"});
+            }
+
+            return (success, error);
+        }
+
+        public async Task<(ErrorModel, PlaybackModel)> GetPlayback()
+        {
+            var (error, playback) = await webApi.GetPlayback();
+
+            if (error == null) return (error, playback);
+
+            this.logger.Warning("Spotify encountered an error :: GetPlayback");
+            await publishEvent(error);
+
+            return (error, playback);
+        }
+
+        public Task<(bool, ErrorModel)> CheckConnectionIsGood() => this.webApi.CheckConnectionIsGood();
     }
 
     public class PlaybackModel

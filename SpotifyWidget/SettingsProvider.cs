@@ -51,12 +51,35 @@ namespace SpotifyWidget
             await writeStream.WriteAsync(JsonConvert.SerializeObject(settings, Formatting.Indented, jsonSettings));
         }
 
-        public async Task ReadSettings()
+        public Task ReadSettings() => AssertSettings();
+
+        private async Task InnerReadSettings()
         {
             await using var fileStream = new FileStream(this.filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var readStream = new StreamReader(fileStream, Encoding.UTF8);
             var result = await readStream.ReadToEndAsync().ConfigureAwait(false);
             this.settings = JsonConvert.DeserializeObject<SettingsModel>(result);
+        }
+
+        private async Task AssertSettings()
+        {
+            var settingsExist = true;
+            try
+            {
+                await InnerReadSettings();
+            }
+            catch (FileNotFoundException agex)
+            {
+                settingsExist = false;
+            }
+
+            if (settingsExist)
+            {
+                return;
+            }
+            
+            // we should just write some
+            await SaveSettings();
         }
     }
 

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Auth;
 using SpotifyAPI.Web.Enums;
@@ -10,25 +9,30 @@ namespace SpotifyWidget.Spotify
 {
     public interface IAuthentication
     {
+        /// <summary>
+        /// Initialises the WebApi object with authorisation credentials. It will attempt to read from settings first (unless overridden) then try Browser Authentication.
+        /// </summary>
+        /// <param name="forceAuth">Used to force Browser Authentication and ignore settings file</param>
+        /// <exception cref="SpotifyWebApiException">Thrown when browser authentication fails</exception>
+        /// <returns>A fully initialised WebApi object with User Authorisation</returns>
         Task<SpotifyWebAPI> Initialise(bool forceAuth = false);
     }
 
+    /// <inheritdoc cref="IAuthentication"/>
     public class Authentication : IAuthentication
     {
         private readonly ISettingsProvider settingsProvider;
-        private ImplicitGrantAuth implicitGrantAuth;
+        private readonly ImplicitGrantAuth implicitGrantAuth;
         
         public Authentication(
-            IConfiguration configuration,
             ISettingsProvider settingsProvider)
         {
             this.settingsProvider = settingsProvider;
-            implicitGrantAuth = new ImplicitGrantAuth(configuration.SpotifyApiKey, "http://localhost:4002",
+            this.implicitGrantAuth = new ImplicitGrantAuth("2ee62a35a2ec45a4a7fe26b81f7f3681", "http://localhost:4002",
                 "http://localhost:4002",
                 Scope.UserReadPlaybackState);
         }
-
-
+        
         public async Task<SpotifyWebAPI> Initialise(bool forceAuth = false)
         {
             if (forceAuth || settingsProvider.TokenType.IsNullOrEmpty() || settingsProvider.AccessToken.IsNullOrEmpty())
@@ -39,21 +43,12 @@ namespace SpotifyWidget.Spotify
             return InitialiseFromSettings();
         }
 
-        private SpotifyWebAPI InitialiseFromSettings()
-        {
-            try
+        private SpotifyWebAPI InitialiseFromSettings() =>
+            new SpotifyWebAPI
             {
-                return new SpotifyWebAPI
-                {
-                    AccessToken = this.settingsProvider.AccessToken,
-                    TokenType = this.settingsProvider.TokenType
-                };
-            }
-            catch (SpotifyWebApiException ex)
-            {
-                throw new SpotifyApplicationException("Unable to connect to ", ex);
-            }
-        }
+                AccessToken = this.settingsProvider.AccessToken,
+                TokenType = this.settingsProvider.TokenType
+            };
 
         private async Task<SpotifyWebAPI> InitialiseFromBrowser()
         {
@@ -89,10 +84,6 @@ namespace SpotifyWidget.Spotify
                     AccessToken = token.AccessToken,
                     TokenType = token.TokenType
                 };
-            }
-            catch (SpotifyWebApiException ex)
-            {
-                throw new SpotifyApplicationException("Unable to connect to ", ex);
             }
             finally
             {

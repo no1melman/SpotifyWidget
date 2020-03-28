@@ -12,11 +12,11 @@ using StructureMap;
 
 namespace SpotifyWidget
 {
-    public class MainBootstrapper : BootstrapperBase, IHandle<ShutdownModel>
+    public class Bootstrapper : BootstrapperBase, IHandle<ShutdownModel>
     {
         private IContainer container;
 
-        public MainBootstrapper()
+        public Bootstrapper()
         {
             Initialize();
         }
@@ -50,10 +50,18 @@ namespace SpotifyWidget
 
                 c.For<IWindowManager>().Use<WindowManager>();
                 c.For<IEventAggregator>().Use<EventAggregator>().Singleton();
+                c.For<IReAuthenticationEventAggregator>().Use<ReAuthenticationEventAggregator>().Singleton();
 
                 c.For<ISettingsProvider>().Use<SettingsProvider>().Singleton();
-                c.For<IWebApi>().Use<WebApi>().Singleton();
+                
+                c.For<IWebApi>()
+                    .Use<WebApi>()
+                    .Singleton()
+                    .DecorateWith((ctx, inner) => new NotifyWebApi(inner, ctx.GetInstance<IEventAggregator>(), ctx.GetInstance<ILogger>()));
+                
                 c.For<IApplicationController>().Use<ApplicationController>().Singleton();
+                // because this handles events, it needs to exist forever...
+                c.For<IStartup>().Use<Startup>().Singleton();
                 c.For<ILogger>().Use(Log.Logger);
             });
 

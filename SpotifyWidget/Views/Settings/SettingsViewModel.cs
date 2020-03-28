@@ -1,6 +1,8 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Caliburn.Micro;
-using SpotifyWidget.Exceptions;
+using Serilog;
 using SpotifyWidget.Spotify;
 
 namespace SpotifyWidget.Views.Settings
@@ -13,30 +15,30 @@ namespace SpotifyWidget.Views.Settings
     public class SettingsViewModel : Screen, ISettingsViewModel
     {
         private readonly IWebApi webApi;
-        private readonly IEventAggregator eventAggregator;
+        private readonly ILogger logger;
 
         public SettingsViewModel(
             IWebApi webApi,
-            IEventAggregator eventAggregator)
+            ILogger logger)
         {
             this.webApi = webApi;
-            this.eventAggregator = eventAggregator;
+            this.logger = logger;
         }
 
 
         public async Task ConnectToSpotify()
         {
-            try
+            var (success, error) = await this.webApi.Authenticate();
+
+            if (!success)
             {
-                await this.webApi.ReAuthorise();
-            }
-            catch (SpotifyApplicationException ex)
-            {
-                await eventAggregator.PublishOnUIThreadAsync(new ShutdownModel(50));
-                await this.TryCloseAsync();
+                this.logger.Warning("Unable to Authenticate :: ConnectToSpotify");
             }
         }
+
+        public void ViewLogs()
+        {
+            Process.Start(new ProcessStartInfo("explorer", Environment.CurrentDirectory));
+        }
     }
-
-
 }
